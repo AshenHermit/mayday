@@ -34,6 +34,7 @@ char = Character()
 in_thought = 0
 
 random.seed = time.time()
+enabled = True
 
 async def wait_for_read(text):
     if not text: return
@@ -62,8 +63,21 @@ async def read_and_answer(message, context: ContextTypes.DEFAULT_TYPE):
 async def keep_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await keep_talking(context)
 
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    global enabled
+    enabled = True
+    await context.bot.send_message(chat_id=chat_id, text="[sys] activated")
+
+async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    global enabled
+    enabled = False
+    await context.bot.send_message(chat_id=chat_id, text="[sys] deactivated")
+
 async def callback_loop(context: ContextTypes.DEFAULT_TYPE):
     global in_thought
+    global enabled
+    if not enabled: return
+    
     if random.uniform(0, 1.0) > max( 0.97 - in_thought*0.02, 0.85):
         await keep_talking(context)
         in_thought += 1
@@ -85,6 +99,8 @@ job_loop = job_queue.run_repeating(callback_loop, interval=30, first=1)
 echo_handler = MessageHandler(filters.TEXT & (~filters.COMMAND), echo)
 application.add_handler(echo_handler)
 application.add_handler(CommandHandler("keep", keep_command))
+application.add_handler(CommandHandler("start", start_command))
+application.add_handler(CommandHandler("stop", stop_command))
 
 
 application.run_polling()

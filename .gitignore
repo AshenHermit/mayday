@@ -4,3 +4,4 @@ __pycache__
 llama_model
 messages_history copy.json
 mhistory
+home
