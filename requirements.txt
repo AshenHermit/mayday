@@ -1,4 +1,4 @@
 python-telegram-bot
 nltk
-argostranslate
+deep_translator
 groq

@@ -6,10 +6,9 @@ from character import Character
 import random
 import asyncio
 import time
-import argostranslate.translate
-import argostranslate.package
 import os
 import traceback
+from deep_translator import GoogleTranslator
 
 import nltk
 nltk.download('punkt')
@@ -17,16 +16,6 @@ nltk.download('punkt')
 
 from_code = "ru"
 to_code = "en"
-
-# Download and install Argos Translate package
-argostranslate.package.update_package_index()
-available_packages = argostranslate.package.get_available_packages()
-package_to_install = next(
-    filter(
-        lambda x: x.from_code == from_code and x.to_code == to_code, available_packages
-    )
-)
-argostranslate.package.install_from_path(package_to_install.download())
 
 def capitalize_sentences_nltk(text):
     # Токенизируем текст на предложения
@@ -85,7 +74,7 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     to_code = "en"
     text = update.message.text
     text = capitalize_sentences_nltk(text)
-    translatedText = argostranslate.translate.translate(text, from_code, to_code)
+    translatedText = GoogleTranslator(source='ru', target='en').translate(text) 
     await read_and_answer(translatedText, context)
     in_thought = 0
 
