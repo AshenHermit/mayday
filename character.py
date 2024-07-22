@@ -1,5 +1,5 @@
 from groq import Groq
-from messages_history import MessagesHistory, ChatInstruction, ThoughtInstruction
+from messages_history import MessagesHistory, ChatInstruction, ThoughtInstruction, SummaryInstruction
 from datetime import datetime
 import re
 import httpx
@@ -37,7 +37,6 @@ class OllamaLLM():
         message = response['message']
         return message
 
-
 class Character():
     def __init__(self) -> None:
         self.dir = Path(__file__).parent / "mhistory"
@@ -50,6 +49,36 @@ class Character():
 
         self.llm = LLM()
         self.user_online = True
+
+        self.msgs_to_leave = 8
+        self.max_messages_to_minimize = 20
+
+    def minimize_context(self):
+        if len(self.chathistory.messages) < self.max_messages_to_minimize:
+            return
+        
+        dialog = ""
+        for msg in self.chathistory._messages[:self.msgs_to_leave]:
+            dialog += msg["content"]
+            dialog += "\n"
+
+        summary_history = MessagesHistory(SummaryInstruction())
+        summary_history.append({
+            'role': "user",
+            'content': dialog,
+        })
+        summary_message = self.llm.generate(summary_history.messages, temperature=1)
+        summary = summary_message["content"]
+
+        summary_message = {
+            'role': "user",
+            'content': "{{context}}\n"+summary+"\n{{context}}",
+        }
+
+        self.chathistory._messages = [summary_message] + self.chathistory._messages[self.msgs_to_leave:]
+        self.thoughthistory._messages = [summary_message] + self.thoughthistory._messages[self.msgs_to_leave:]
+
+        return summary
 
     def construct_status_text(self):
         current_time = datetime.now()
@@ -76,10 +105,10 @@ class Character():
     
     def construct_chat_message(self, thoughts_text=None, message_text=None):
         message = ""
-        if thoughts_text:
-            message += "{{your_thoughts}} "+ thoughts_text +" {{your_thoughts}}\n"
         if message_text:
             message += "{{user_message}} "+ message_text +" {{user_message}}\n"
+        if thoughts_text:
+            message += "{{your_thoughts}} "+ thoughts_text +" {{your_thoughts}}\n"
         
         message = message.strip()
         return {
@@ -88,6 +117,8 @@ class Character():
         }
 
     def chat(self, user_text=None):
+        self.minimize_context()
+
         message_to_thoughts = self.construct_thoughts_message(user_text)
         self.thoughthistory.append(message_to_thoughts)
         thought_message = self.llm.generate(self.thoughthistory.messages, temperature=1.5)
