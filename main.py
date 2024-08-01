@@ -34,7 +34,7 @@ char = Character()
 in_thought = 0
 
 random.seed = time.time()
-enabled = True
+enabled = False
 
 async def wait_for_read(text):
     if not text: return

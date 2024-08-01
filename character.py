@@ -11,9 +11,9 @@ class LLM():
         self.groq_token = os.environ["GROQ_TOKEN"]
         self.client = Groq(api_key=self.groq_token)
 
-    def generate(self, messages, temperature=0.87):
+    def generate(self, messages, temperature=0.87, model="llama-3.1-8b-instant"):
         completion = self.client.chat.completions.create(
-            model="llama3-70b-8192",
+            model=model,
             messages=messages,
             temperature=temperature,
             max_tokens=1024,
@@ -67,12 +67,12 @@ class Character():
             'role': "user",
             'content': dialog,
         })
-        summary_message = self.llm.generate(summary_history.messages, temperature=1)
+        summary_message = self.llm.generate(summary_history.messages, temperature=1, model="llama3-70b-8192")
         summary = summary_message["content"]
 
         summary_message = {
             'role': "user",
-            'content': "{{context}}\n"+summary+"\n{{context}}",
+            'content': "---\n{{context}}\n"+summary+"\n\n",
         }
 
         self.chathistory._messages = [summary_message] + self.chathistory._messages[self.msgs_to_leave:]
@@ -93,9 +93,9 @@ class Character():
 
     def construct_thoughts_message(self, message_text=None):
         message = ""
-        message += "{{status_data}} "+ self.construct_status_text() +" {{status_data}}\n"
+        message += "---\n{{status_data}}\n"+ self.construct_status_text() +"\n\n"
         if message_text:
-            message += "{{user_message}} "+ message_text +" {{user_message}}\n"
+            message += "---\n{{user_message}}\n"+ message_text +"\n\n"
         
         message = message.strip()
         return {
@@ -105,10 +105,11 @@ class Character():
     
     def construct_chat_message(self, thoughts_text=None, message_text=None):
         message = ""
+        message += "---\n{{status_data}}\n"+ self.construct_status_text() +"\n\n"
         if message_text:
-            message += "{{user_message}} "+ message_text +" {{user_message}}\n"
+            message += "---\n{{user_message}}\n"+ message_text +"\n\n"
         if thoughts_text:
-            message += "{{your_thoughts}} "+ thoughts_text +" {{your_thoughts}}\n"
+            message += "---\n{{your_thoughts}}\n"+ thoughts_text +"\n\n"
         
         message = message.strip()
         return {
@@ -119,17 +120,24 @@ class Character():
     def chat(self, user_text=None):
         self.minimize_context()
 
-        message_to_thoughts = self.construct_thoughts_message(user_text)
-        self.thoughthistory.append(message_to_thoughts)
-        thought_message = self.llm.generate(self.thoughthistory.messages, temperature=1.5)
-        self.thoughthistory.append(thought_message)
-        self.thoughthistory.save()
+        if not user_text:
+            message_to_thoughts = self.construct_thoughts_message(user_text)
+            self.thoughthistory.append(message_to_thoughts)
+            thought_message = self.llm.generate(self.thoughthistory.messages, temperature=1.4)
+            self.thoughthistory.append(thought_message)
+            self.thoughthistory.save()
         
-        message_to_chat = self.construct_chat_message(thought_message["content"], user_text)
+            message_to_chat = self.construct_chat_message(thought_message, user_text)
+        else:
+            message_to_chat = self.construct_chat_message(None, user_text)
+        
         self.chathistory.append(message_to_chat)
-        chat_message = self.llm.generate(self.chathistory.messages, temperature=1)
+        chat_message = self.llm.generate(self.chathistory.messages, temperature=0.9)
+        text:str = chat_message["content"]
+        if text.lower().startswith("I cannot continue this conversation"):
+            chat_message = self.llm.generate(self.chathistory.messages, temperature=0.9, model="llama3-70b-8192")
+            text:str = chat_message["content"]
         self.chathistory.append(chat_message)
         self.chathistory.save()
 
-        text = chat_message["content"]
         return text
