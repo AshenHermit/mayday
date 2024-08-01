@@ -1,5 +1,5 @@
 from groq import Groq
-from messages_history import MessagesHistory, ChatInstruction, ThoughtInstruction, SummaryInstruction
+from messages_history import MessagesHistory, ChatInstruction, ThoughtInstruction, SummaryInstruction, MetaKeysInstruction
 from datetime import datetime
 import re
 import httpx
@@ -36,6 +36,28 @@ class OllamaLLM():
         response = ollama.chat(model='llama3:8b', messages=messages, options=ollama.Options(temperature=temperature))
         message = response['message']
         return message
+
+class LongTermMemorizer():
+    def __init__(self) -> None:
+        self.llm = LLM()
+        self.meta_keys_instruction = MetaKeysInstruction()
+        self.meta_keys = ""
+
+    def generate_meta_keys(self, message):
+        messages = []
+        messages.append(self.meta_keys_instruction.system_message)
+        messages.append({
+            'role': "user",
+            'content': f"current metadata tags:\n---\n{self.meta_keys}",
+        })
+        messages.append({
+            'role': "user",
+            'content': message,
+        })
+        answer = self.llm.generate(messages, temperature=1, model="llama3-70b-8192")
+        new_meta_keys = answer["content"]
+        self.meta_keys = new_meta_keys
+        return new_meta_keys
 
 class Character():
     def __init__(self) -> None:
