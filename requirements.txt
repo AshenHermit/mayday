@@ -3,3 +3,7 @@ python-telegram-bot[job-queue]
 nltk
 deep_translator
 groq
+langchain-chroma
+langchain
+langchain-community
+langchain-openai

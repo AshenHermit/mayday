@@ -1,10 +1,17 @@
 from groq import Groq
-from messages_history import MessagesHistory, ChatInstruction, ThoughtInstruction, SummaryInstruction, MetaKeysInstruction
+from messages_history import MessagesHistory, ChatInstruction, ThoughtInstruction, SummaryInstruction, MetaKeysInstruction, MetaKeysSelectorInstruction
 from datetime import datetime
 import re
 import httpx
 import os
+import json
 from pathlib import Path
+
+from langchain_community.document_loaders import TextLoader
+from langchain_openai import OpenAIEmbeddings
+from langchain_text_splitters import CharacterTextSplitter
+from langchain_chroma import Chroma
+
 
 class LLM():
     def __init__(self) -> None:
@@ -37,31 +44,70 @@ class OllamaLLM():
         message = response['message']
         return message
 
+MemoryDir = Path(__file__).parent / "mhistory"
 class LongTermMemorizer():
-    def __init__(self) -> None:
+    def __init__(self, filename:str="ash") -> None:
         self.llm = LLM()
+        self.filepath = MemoryDir / f"{filename}_tags.json"
         self.meta_keys_instruction = MetaKeysInstruction()
-        self.meta_keys = ""
+        self.meta_keys_selector_instruction = MetaKeysSelectorInstruction()
+        self.meta_keys = {}
+        self.try_to_load()
+
+    def try_to_load(self):
+        try:
+            json_text = self.filepath.read_text(encoding="utf-8")
+            data = json.loads(json_text)
+            for key in data:
+                data[key] = set(data[key])
+            self.meta_keys = data
+        except:
+            pass
+
+    def save(self):
+        data = { key: list(self.meta_keys[key]) for key in self.meta_keys}
+        json_text = json.dumps(data, ensure_ascii=False, indent=2)
+        self.filepath.write_text(json_text, encoding="utf-8")
 
     def generate_meta_keys(self, message):
         messages = []
         messages.append(self.meta_keys_instruction.system_message)
         messages.append({
             'role': "user",
-            'content': f"current metadata tags:\n---\n{self.meta_keys}",
-        })
-        messages.append({
-            'role': "user",
-            'content': message,
+            'content': f"Ash message:\n\n{message}",
         })
         answer = self.llm.generate(messages, temperature=1, model="llama3-70b-8192")
         new_meta_keys = answer["content"]
-        self.meta_keys = new_meta_keys
-        return new_meta_keys
+
+        pattern = r'(\w+):\s*"?([^"\n]+)"?'
+        matches = re.findall(pattern, new_meta_keys)
+        key_value_pairs = {key: value for key, value in matches}
+
+        for key in key_value_pairs.keys():
+            if key in self.meta_keys:
+                self.meta_keys[key].add(key_value_pairs[key])
+            else:
+                self.meta_keys[key] = set()
+                self.meta_keys[key].add(key_value_pairs[key])
+
+        return new_meta_keys, self.meta_keys
+    
+    def get_meta_tags_for_messages(self, messages:str):
+        messages = []
+        messages.append(self.meta_keys_selector_instruction.system_message)
+        messages.append({
+            'role': "user",
+            'content': f"all_tags:\n{", ".join(self.meta_keys.keys())}\n\nmessage:\n{messages}",
+        })
+        answer = self.llm.generate(messages, temperature=1, model="llama3-70b-8192")
+        selected_meta_keys = answer["content"]
+        selected_meta_keys = [meta_key.strip() for meta_key in selected_meta_keys.split("\n")]
+        tags_text = {key: list(self.meta_keys[key])[-1] for key in selected_meta_keys}
+        return tags_text
 
 class Character():
     def __init__(self) -> None:
-        self.dir = Path(__file__).parent / "mhistory"
+        self.dir = MemoryDir
 
         self.thoughthistory = MessagesHistory(ThoughtInstruction(), self.dir/"thought_history.json")
         self.thoughthistory.load()
@@ -74,6 +120,13 @@ class Character():
 
         self.msgs_to_leave = 8
         self.max_messages_to_minimize = 20
+
+        self.all_messages_file = self.dir/"all_messages.txt"
+
+        raw_documents = TextLoader(self.all_messages_file).load()
+        text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+        documents = text_splitter.split_documents(raw_documents)
+        self.db = Chroma.from_documents(documents, OpenAIEmbeddings())
 
     def minimize_context(self):
         if len(self.chathistory.messages) < self.max_messages_to_minimize:
@@ -124,6 +177,13 @@ class Character():
             'role': "user",
             'content': message,
         }
+
+    def get_memories(self, user_message):
+        text = ""
+        docs = self.db.similarity_search_with_score(user_message)
+        docs = sorted(docs, key=lambda x: x[1])
+        text = docs[-1][0].page_content
+        return text
     
     def construct_chat_message(self, thoughts_text=None, message_text=None):
         message = ""
@@ -138,6 +198,11 @@ class Character():
             'role': "user",
             'content': message,
         }
+    
+    def add_text_to_all_messages(self, text2add):
+        text = self.all_messages_file.read_text(encoding="utf-8")
+        text += text2add
+        self.all_messages_file.write_text(text, encoding="utf-8")
 
     def chat(self, user_text=None):
         self.minimize_context()
@@ -152,14 +217,20 @@ class Character():
             message_to_chat = self.construct_chat_message(thought_message, user_text)
         else:
             message_to_chat = self.construct_chat_message(None, user_text)
-        
+            self.add_text_to_all_messages(f"\n\n\"from\": \"Ash\"\n \"text\": \"{user_text}\"")
+
         self.chathistory.append(message_to_chat)
-        chat_message = self.llm.generate(self.chathistory.messages, temperature=0.9)
+        messages = self.chathistory.messages
+        messages[-1]["content"] = f"memories:\n{self.get_memories(user_text)}\n---\n" + messages[-1]["content"]
+
+        chat_message = self.llm.generate(messages, temperature=1)
         text:str = chat_message["content"]
         if text.lower().startswith("I cannot continue this conversation"):
-            chat_message = self.llm.generate(self.chathistory.messages, temperature=0.9, model="llama3-70b-8192")
+            chat_message = self.llm.generate(messages, temperature=1, model="llama3-70b-8192")
             text:str = chat_message["content"]
         self.chathistory.append(chat_message)
         self.chathistory.save()
+
+        self.add_text_to_all_messages(f"\n\n\"from\": \"May\"\n \"text\": \"{text}\"")
 
         return text
