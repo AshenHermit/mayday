@@ -179,11 +179,11 @@ class Character():
             message_to_chat = self.construct_chat_message(thought_message, user_text)
         else:
             message_to_chat = self.construct_chat_message(None, user_text)
-            self.add_text_to_all_messages({"from": "Ash", "text": user_text})
 
         self.chathistory.append(message_to_chat)
         messages = self.chathistory.messages
         messages[-1]["content"] = f"memories:\n{self.get_memories(user_text)}\n---\n" + messages[-1]["content"]
+        if user_text: self.add_text_to_all_messages({"from": "Ash", "text": user_text})
         logger.info(messages[-1]["content"])
 
         chat_message = self.llm.generate(messages, temperature=1)
