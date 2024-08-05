@@ -6,12 +6,13 @@ import httpx
 import os
 import json
 from pathlib import Path
+import uuid
 
-from langchain_community.document_loaders import TextLoader
-from langchain_openai import OpenAIEmbeddings
-from langchain_text_splitters import CharacterTextSplitter
-from langchain_chroma import Chroma
+import chromadb
+import logging
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(filename='mhistory/log.log', level=logging.INFO)
 
 class LLM():
     def __init__(self) -> None:
@@ -121,12 +122,23 @@ class Character():
         self.msgs_to_leave = 8
         self.max_messages_to_minimize = 20
 
-        self.all_messages_file = self.dir/"all_messages.txt"
+        self.all_messages_file = self.dir/"all_messages.json"
 
-        raw_documents = TextLoader(self.all_messages_file).load()
-        text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
-        documents = text_splitter.split_documents(raw_documents)
-        self.db = Chroma.from_documents(documents, OpenAIEmbeddings())
+        self.chromadb = chromadb.Client()
+        self.dbcollection = self.chromadb.get_or_create_collection(name="chat_messages")
+        self.load_messages_to_db()
+
+    def load_messages_to_db(self):
+        data = json.loads(self.all_messages_file.read_text(encoding="utf-8"))
+        for i, message in enumerate(data):
+            self.add_message_to_db(message, i)
+
+    def add_message_to_db(self, message_obj, id=None):
+        if id is None: id = uuid.uuid4().int
+        self.dbcollection.add(
+            documents=[f"from: \"{message_obj["text"]}\": "+message_obj["text"]],
+            ids=[str(id)]
+        )
 
     def minimize_context(self):
         if len(self.chathistory.messages) < self.max_messages_to_minimize:
@@ -180,9 +192,14 @@ class Character():
 
     def get_memories(self, user_message):
         text = ""
-        docs = self.db.similarity_search_with_score(user_message)
-        docs = sorted(docs, key=lambda x: x[1])
-        text = docs[-1][0].page_content
+        query_message = user_message
+        results = self.dbcollection.query(
+            query_texts=[query_message],
+            n_results=3
+        )
+        for doc in results['documents'][0][:3]:
+            text += doc
+            text += "\n"
         return text
     
     def construct_chat_message(self, thoughts_text=None, message_text=None):
@@ -199,10 +216,11 @@ class Character():
             'content': message,
         }
     
-    def add_text_to_all_messages(self, text2add):
-        text = self.all_messages_file.read_text(encoding="utf-8")
-        text += text2add
-        self.all_messages_file.write_text(text, encoding="utf-8")
+    def add_text_to_all_messages(self, data2add):
+        data = json.loads(self.all_messages_file.read_text(encoding="utf-8"))
+        self.add_message_to_db(data2add)
+        data.append(data2add)
+        self.all_messages_file.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def chat(self, user_text=None):
         self.minimize_context()
@@ -217,11 +235,12 @@ class Character():
             message_to_chat = self.construct_chat_message(thought_message, user_text)
         else:
             message_to_chat = self.construct_chat_message(None, user_text)
-            self.add_text_to_all_messages(f"\n\n\"from\": \"Ash\"\n \"text\": \"{user_text}\"")
+            self.add_text_to_all_messages({"from": "Ash", "text": user_text})
 
         self.chathistory.append(message_to_chat)
         messages = self.chathistory.messages
         messages[-1]["content"] = f"memories:\n{self.get_memories(user_text)}\n---\n" + messages[-1]["content"]
+        logger.info(messages[-1]["content"])
 
         chat_message = self.llm.generate(messages, temperature=1)
         text:str = chat_message["content"]
@@ -231,6 +250,6 @@ class Character():
         self.chathistory.append(chat_message)
         self.chathistory.save()
 
-        self.add_text_to_all_messages(f"\n\n\"from\": \"May\"\n \"text\": \"{text}\"")
+        self.add_text_to_all_messages({"from": "May", "text":{text}})
 
         return text
