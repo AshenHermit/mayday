@@ -1,4 +1,4 @@
-FROM python:3.13.0b4-slim-bullseye
+FROM python:3.11-bullseye
 RUN apt-get update && apt-get install -y \
     build-essential \
     gcc
