@@ -77,7 +77,7 @@ class Character():
     def add_message_to_db(self, message_obj, id=None):
         if id is None: id = uuid.uuid4().int
         self.dbcollection.add(
-            documents=[f"from: \"{message_obj["text"]}\": "+message_obj["text"]],
+            documents=[f"from: \"{message_obj['text']}\": "+message_obj['text']],
             ids=[str(id)]
         )
 
