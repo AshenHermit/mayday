@@ -120,12 +120,9 @@ previous chat messages associated with current user message, this should help ge
 ---
 {{user_message}}
 Hi, May 
-
-
 ```
-- {{user_message}} encloses the message from the user.
-- {{your_thoughts}} encloses the girl's thoughts, providing insight into her internal dialogue.
-- memories: - previous chat messages associated with current user message, this should help generate appropriate response
+- {{user_message}} encloses the message from the user. This is what needs to be responded to.
+- memories: - previous chat messages associated with current user message, this should help generate appropriate response, Important: Don't regard these memories as something to which you need to react. its just old messages.
 
 Respond by crafting a suitable reply that a girl might send in this context. Make sure to incorporate the thoughts provided to add depth to your response.
 And make sure to not write in your response tags like {{your_thoughts}} or {{user_message}} or any else 

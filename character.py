@@ -194,6 +194,6 @@ class Character():
         self.chathistory.append(chat_message)
         self.chathistory.save()
 
-        self.add_text_to_all_messages({"from": "May", "text":{text}})
+        self.add_text_to_all_messages({"from": "May", "text": text})
 
         return text
