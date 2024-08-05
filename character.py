@@ -197,7 +197,7 @@ class Character():
             query_texts=[query_message],
             n_results=3
         )
-        for doc in results['documents'][0][:3]:
+        for doc in results['documents'][0]:
             text += doc
             text += "\n"
         return text
