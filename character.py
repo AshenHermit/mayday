@@ -46,65 +46,6 @@ class OllamaLLM():
         return message
 
 MemoryDir = Path(__file__).parent / "mhistory"
-class LongTermMemorizer():
-    def __init__(self, filename:str="ash") -> None:
-        self.llm = LLM()
-        self.filepath = MemoryDir / f"{filename}_tags.json"
-        self.meta_keys_instruction = MetaKeysInstruction()
-        self.meta_keys_selector_instruction = MetaKeysSelectorInstruction()
-        self.meta_keys = {}
-        self.try_to_load()
-
-    def try_to_load(self):
-        try:
-            json_text = self.filepath.read_text(encoding="utf-8")
-            data = json.loads(json_text)
-            for key in data:
-                data[key] = set(data[key])
-            self.meta_keys = data
-        except:
-            pass
-
-    def save(self):
-        data = { key: list(self.meta_keys[key]) for key in self.meta_keys}
-        json_text = json.dumps(data, ensure_ascii=False, indent=2)
-        self.filepath.write_text(json_text, encoding="utf-8")
-
-    def generate_meta_keys(self, message):
-        messages = []
-        messages.append(self.meta_keys_instruction.system_message)
-        messages.append({
-            'role': "user",
-            'content': f"Ash message:\n\n{message}",
-        })
-        answer = self.llm.generate(messages, temperature=1, model="llama3-70b-8192")
-        new_meta_keys = answer["content"]
-
-        pattern = r'(\w+):\s*"?([^"\n]+)"?'
-        matches = re.findall(pattern, new_meta_keys)
-        key_value_pairs = {key: value for key, value in matches}
-
-        for key in key_value_pairs.keys():
-            if key in self.meta_keys:
-                self.meta_keys[key].add(key_value_pairs[key])
-            else:
-                self.meta_keys[key] = set()
-                self.meta_keys[key].add(key_value_pairs[key])
-
-        return new_meta_keys, self.meta_keys
-    
-    def get_meta_tags_for_messages(self, messages:str):
-        messages = []
-        messages.append(self.meta_keys_selector_instruction.system_message)
-        messages.append({
-            'role': "user",
-            'content': f"all_tags:\n{", ".join(self.meta_keys.keys())}\n\nmessage:\n{messages}",
-        })
-        answer = self.llm.generate(messages, temperature=1, model="llama3-70b-8192")
-        selected_meta_keys = answer["content"]
-        selected_meta_keys = [meta_key.strip() for meta_key in selected_meta_keys.split("\n")]
-        tags_text = {key: list(self.meta_keys[key])[-1] for key in selected_meta_keys}
-        return tags_text
 
 class Character():
     def __init__(self) -> None:
