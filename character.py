@@ -188,12 +188,12 @@ class Character():
 
         chat_message = self.llm.generate(messages, temperature=1)
         text:str = chat_message["content"]
-        if text.lower().startswith("I cannot continue this conversation") or "National Suicide Prevention Lifeline" in text:
+        if text.lower().startswith("i cannot continue this conversation") or "National Suicide Prevention Lifeline" in text:
             chat_message = self.llm.generate(messages, temperature=1, model="llama3-70b-8192")
             text:str = chat_message["content"]
         self.chathistory.append(chat_message)
         self.chathistory.save()
 
         self.add_text_to_all_messages({"from": "May", "text": text})
-
+        
         return text
