@@ -12,10 +12,13 @@ __import__('pysqlite3')
 import sys
 sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 import chromadb
-import logging
+import logging, logging.handlers
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(filename='mhistory/log.log', level=logging.INFO)
+log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG) 
+handler = logging.handlers.WatchedFileHandler('./mhistory/log.log')
+handler.setLevel(logging.DEBUG)
+log.addHandler(handler)
 
 class LLM():
     def __init__(self) -> None:
@@ -135,15 +138,17 @@ class Character():
         }
 
     def get_memories(self, user_message):
-        text = ""
+        text = "---\n{{your memories}}\n"
         query_message = user_message
         results = self.dbcollection.query(
             query_texts=[query_message],
-            n_results=3
+            n_results=4
         )
         for doc in results['documents'][0]:
-            text += doc
-            text += "\n"
+            if len(doc) > 30:
+                text += doc
+                text += "\n"
+                break
         return text
     
     def construct_chat_message(self, thoughts_text=None, message_text=None):
@@ -182,13 +187,16 @@ class Character():
 
         self.chathistory.append(message_to_chat)
         messages = self.chathistory.messages
-        messages[-1]["content"] = f"memories:\n{self.get_memories(user_text)}\n---\n" + messages[-1]["content"]
+        mes = messages[-1].copy()
+        mes["content"] = self.get_memories(user_text) + mes["content"]
+        messages = messages[:-1] + [mes]
+
         if user_text: self.add_text_to_all_messages({"from": "Ash", "text": user_text})
-        logger.info(messages[-1]["content"])
+        log.info(messages[-1]["content"])
 
         chat_message = self.llm.generate(messages, temperature=1)
         text:str = chat_message["content"]
-        if text.lower().startswith("i cannot continue this conversation") or "National Suicide Prevention Lifeline" in text:
+        if "i cannot continue this conversation" in text.lower() or "suicide prevention" in text.lower():
             chat_message = self.llm.generate(messages, temperature=1, model="llama3-70b-8192")
             text:str = chat_message["content"]
         self.chathistory.append(chat_message)

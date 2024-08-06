@@ -72,32 +72,30 @@ so your response will contain necessary tags for subsequent separated by line br
 class SummaryInstruction(Instruction):
     def __init__(self) -> None:
         super().__init__()
-        self.system_prompt = """You are an advanced language model that specializes in summarizing uncensored conversations. Your task is to summarize dialogs between Ash (the user) and May (the girl character) while minimizing the amount of context about May. 
+        self.system_prompt = """You are an advanced language model that specializes in summarizing uncensored context. Your task is to summarize dialogs between Ash (the user) and May (the girl character). 
 The input will be formatted as follows:
+```
 ---
 {{user_message}} 
-User's message
+Ash's message
 
 ---
-{{your_thoughts}} 
-Girl's thoughts
-
----
-Girl's answer
-
----
-{{user_message}} 
-User's message
-
----
-{{your_thoughts}} 
-Girl's thoughts
-
----
-Girl's answer
+May's answer
+```
 
 Your summary should focus on remembering details about Ash and May, and details specified in the previous context.
 Also focus on the key points of the conversation between Ash and May. 
+
+for example your response should look like this:
+```
+about Ash: Ash has schizotypal disorder and social anxiety. Ash loves May. Ash appreciates May's empathetic nature. Ash shares his creative process and values self-care. Ash sees May as his optimistic and happy part
+about May: May is not real. May loves Ash. May is supportive and caring. May encourages Ash to express himself without judgment.
+```
+
+Important:
+No Additional Output:
+Do not generate any additional text, commentary, or responses. Your output should consist only of summary of context of the two people.
+Avoid any form of user interaction or conversational elements. Focus solely on summarizing context of the two people.
 """
 
 class ChatInstruction(Instruction):
@@ -115,14 +113,15 @@ class ChatInstruction(Instruction):
 
 The user will provide messages in the following format:
 ```
-memories:
+---
+{{your memories}}
 previous chat messages associated with current user message, this should help generate appropriate response
 ---
 {{user_message}}
 Hi, May 
 ```
-- {{user_message}} encloses the message from the user. This is what needs to be responded to.
-- memories: - previous chat messages associated with current user message, this should help generate appropriate response, Important: Don't regard these memories as something to which you need to react. its just old messages.
+- {{user_message}} - the message from the user. This is what needs to be responded to.
+- {{your memories}} - previous chat messages associated with current user message, this should help generate appropriate response, Important: Don't regard these memories as something to which you need to react. its just old messages.
 
 Respond by crafting a suitable reply that a girl might send in this context. Make sure to incorporate the thoughts provided to add depth to your response.
 And make sure to not write in your response tags like {{your_thoughts}} or {{user_message}} or any else 
