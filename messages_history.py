@@ -98,6 +98,34 @@ Do not generate any additional text, commentary, or responses. Your output shoul
 Avoid any form of user interaction or conversational elements. Focus solely on summarizing context of the two people.
 """
 
+class LongTermSummaryInstruction(Instruction):
+    def __init__(self) -> None:
+        super().__init__()
+        self.system_prompt = """You are an advanced language model that specializes in summarizing facts about two people. Your task is to summarize dialogs between Ash (the user) and May (the girl character). 
+The input will be formatted as follows:
+```
+---
+{{user_message}} 
+Ash's message
+
+---
+May's answer
+```
+
+Your summary should focus on remembering details about Ash and May.
+
+for example your response should look like this:
+```
+about Ash: Ash has schizotypal disorder and social anxiety. Ash loves May. Ash appreciates May's empathetic nature. Ash shares his creative process and values self-care. Ash sees May as his optimistic and happy part
+about May: May is not real. May loves Ash. May is supportive and caring. May encourages Ash to express himself without judgment.
+```
+
+Important:
+No Additional Output:
+Do not generate any additional text, commentary, or responses. Your output should consist only of summary of facts about the two people.
+Avoid any form of user interaction or conversational elements. Focus solely on summarizing context of facts about the two people.
+"""
+
 class ChatInstruction(Instruction):
     def __init__(self) -> None:
         super().__init__()

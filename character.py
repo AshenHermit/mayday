@@ -53,6 +53,28 @@ class OllamaLLM():
 
 MemoryDir = Path(__file__).parent / "mhistory"
 
+class LongTermMemorizer():
+    def __init__(self) -> None:
+        self.llm = LLM()
+        self.meta_keys_instruction = MetaKeysInstruction()
+        self.meta_keys = ""
+
+    def generate_meta_keys(self, message):
+        messages = []
+        messages.append(self.meta_keys_instruction.system_message)
+        messages.append({
+            'role': "user",
+            'content': f"current metadata tags:\n---\n{self.meta_keys}",
+        })
+        messages.append({
+            'role': "user",
+            'content': message,
+        })
+        answer = self.llm.generate(messages, temperature=1, model="llama3-70b-8192")
+        new_meta_keys = answer["content"]
+        self.meta_keys = new_meta_keys
+        return new_meta_keys
+
 class Character():
     def __init__(self) -> None:
         self.dir = MemoryDir
@@ -103,9 +125,9 @@ class Character():
         })
         summary_message = self.llm.generate(summary_history.messages, temperature=1, model="llama3-70b-8192")
         summary = summary_message["content"]
-
+        
         summary_message = {
-            'role': "user",
+            'role': "user", 
             'content': "---\n{{context}}\n"+summary+"\n\n",
         }
 
@@ -188,7 +210,7 @@ class Character():
         self.chathistory.append(message_to_chat)
         messages = self.chathistory.messages
         mes = messages[-1].copy()
-        mes["content"] = self.get_memories(user_text) + mes["content"]
+        # mes["content"] = self.get_memories(user_text) + mes["content"]
         messages = messages[:-1] + [mes]
 
         if user_text: self.add_text_to_all_messages({"from": "Ash", "text": user_text})
@@ -199,6 +221,7 @@ class Character():
         if "i cannot continue this conversation" in text.lower() or "suicide prevention" in text.lower():
             chat_message = self.llm.generate(messages, temperature=1, model="llama3-70b-8192")
             text:str = chat_message["content"]
+        log.info(text)
         self.chathistory.append(chat_message)
         self.chathistory.save()
 
